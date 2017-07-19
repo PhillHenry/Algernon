@@ -71,8 +71,8 @@
   </dependencies>
 
   <build>
-    <sourceDirectory>core/src/main/scala</sourceDirectory>
-    <testSourceDirectory>core/src/test/scala</testSourceDirectory>
+    <sourceDirectory>src/main/scala</sourceDirectory>
+    <testSourceDirectory>src/test/scala</testSourceDirectory>
     <plugins>
       <plugin>
         <!-- see http://davidb.github.com/scala-maven-plugin -->
