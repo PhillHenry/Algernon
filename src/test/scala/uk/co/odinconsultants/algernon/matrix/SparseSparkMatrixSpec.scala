@@ -15,6 +15,8 @@ class SparseSparkMatrixSpec extends WordSpec with Matchers with TypeCheckedTripl
   import SparkForTesting.session.implicits._
   import SparseSparkMatrix._
 
+  private implicit val session = SparkForTesting.session
+
   "Multiplying matrices" should {
     "generate the matrix at https://www.mathsisfun.com/algebra/matrix-multiplying.html" in {
 
@@ -30,11 +32,16 @@ class SparseSparkMatrixSpec extends WordSpec with Matchers with TypeCheckedTripl
           |11 12
         """.stripMargin, toNumeric)
 
-      // TODO do the multiplication and make assertions
+      val cells = A.multiply(B).collect()
+      cells should have size 4
+      cells should contain (MatrixCell(0, 0, 58))
+      cells should contain (MatrixCell(0, 1, 64))
+      cells should contain (MatrixCell(1, 0, 139))
+      cells should contain (MatrixCell(1, 1, 154))
     }
   }
 
-  def toMatrix[T: Encoder : TypeTag](x: String, toNumeric: String => T): SparseSpark[T] = {
+  def toMatrix[T: Encoder : TypeTag : Numeric](x: String, toNumeric: String => T): SparseSpark[T] = {
 
     def toCell(i: Int, j: Int, v: String): MatrixCell[T]  = MatrixCell(i.toLong, j.toLong, toNumeric(v))
 
