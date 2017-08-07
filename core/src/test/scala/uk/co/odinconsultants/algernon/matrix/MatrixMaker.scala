@@ -19,7 +19,7 @@ object MatrixMaker {
     SparkForTesting.session.createDataset(rdd)
   }
 
-  private def asCells[T: Encoder : TypeTag : Numeric](x: String, toNumeric: (String) => T): Seq[MatrixCell[T]] = {
+  def asCells[T: Encoder : TypeTag : Numeric](x: String, toNumeric: (String) => T): Seq[MatrixCell[T]] = {
     def toCell(i: Int, j: Int, v: String): MatrixCell[T] = MatrixCell(i.toLong, j.toLong, toNumeric(v))
 
     def toCells(line: String, i: Int): Seq[MatrixCell[T]] = line.split(" ").filterNot(_ == "").zipWithIndex.map { case (v, j) => toCell(i, j, v) }

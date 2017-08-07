@@ -1,5 +1,7 @@
 package uk.co.odinconsultants.algernon.matrix
 
+import java.lang.Math.pow
+
 import org.junit.runner.RunWith
 import org.scalactic.TypeCheckedTripleEquals
 import org.scalatest.junit.JUnitRunner
@@ -12,10 +14,12 @@ class SparseSparkMatrixSpec extends WordSpec with Matchers with TypeCheckedTripl
   import SparkForTesting.session.implicits._
   import SparseSparkMatrix._
 
-  val A: SparseSpark[Int] = toMatrix[Int](
+  private val AString: String =
     """1 2 3
-      |4 5 6
-    """.stripMargin, toNumeric)
+      |4 5 6""".stripMargin
+
+  val A: SparseSpark[Int] = toMatrix[Int](
+    AString, toNumeric)
   val B: SparseSpark[Int] = toMatrix[Int](
     """7  8
       |9  10
@@ -45,6 +49,13 @@ class SparseSparkMatrixSpec extends WordSpec with Matchers with TypeCheckedTripl
       cells should contain (MatrixCell(1, 1, 5))
       cells should contain (MatrixCell(2, 0, 3))
       cells should contain (MatrixCell(2, 1, 6))
+    }
+  }
+
+  "Frobenius norm" should {
+    "be the root of the sum of the squares of the cells" in {
+      val expected = pow(asCells(AString, toNumeric).map(_.x).foldLeft(0d) { case (acc, x) => acc + pow(x, 2)}, 0.5)
+      A.frobeniusNormSquared shouldBe 91 //pow(91, 0.5)
     }
   }
 
