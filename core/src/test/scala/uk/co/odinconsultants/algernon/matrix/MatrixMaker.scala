@@ -14,12 +14,16 @@ object MatrixMaker {
 
   def toMatrix[T: Encoder : TypeTag : Numeric](x: String, toNumeric: String => T): SparseSpark[T] = {
 
-    def toCell(i: Int, j: Int, v: String): MatrixCell[T]  = MatrixCell(i.toLong, j.toLong, toNumeric(v))
-
-    def toCells(line: String, i: Int): Seq[MatrixCell[T]] = line.split(" ").filterNot(_ == "").zipWithIndex.map { case (v, j) =>  toCell(i, j, v) }
-
-    val rdd = sc.parallelize(x.split("\n").zipWithIndex.flatMap { case (line, i) => toCells(line, i) })
+    val rdd = sc.parallelize(asCells(x, toNumeric))
 
     SparkForTesting.session.createDataset(rdd)
+  }
+
+  private def asCells[T: Encoder : TypeTag : Numeric](x: String, toNumeric: (String) => T): Seq[MatrixCell[T]] = {
+    def toCell(i: Int, j: Int, v: String): MatrixCell[T] = MatrixCell(i.toLong, j.toLong, toNumeric(v))
+
+    def toCells(line: String, i: Int): Seq[MatrixCell[T]] = line.split(" ").filterNot(_ == "").zipWithIndex.map { case (v, j) => toCell(i, j, v) }
+
+    x.split("\n").zipWithIndex.flatMap { case (line, i) => toCells(line, i) }
   }
 }
