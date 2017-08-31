@@ -1,7 +1,10 @@
 package uk.co.odinconsultants.algernon.matrix
 
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 import org.scalatest.{Matchers, WordSpec}
 
+@RunWith(classOf[JUnitRunner])
 class SparseSparkMatrixSpec extends WordSpec with Matchers {
 
   import SparseSparkMatrix._
