@@ -50,23 +50,27 @@ object SparseSparkMatrix {
     G[j, j] = c
     G[j, i] = s
       */
-    def make0(j: Long, i: Long)(implicit session: SparkSession, maths: Maths[T]): SparseSpark[T] = {
+    def make0(i: Long, j: Long)(implicit session: SparkSession, maths: Maths[T]): SparseSpark[T] = {
       val mathOps = implicitly[Numeric[T]]
       import mathOps.mkNumericOps
       import maths._
       import session.sqlContext.implicits._
-      val as = ds.filter(c => (c.i == i || c.i == j) && c.j == i).collect()
+      val as = ds.filter(c => (c.i == i || c.i == j) && (c.j == i || c.j == j)).collect()
       val aji = getOr0(as, i, j)
       val aii = getOr0(as, i, i)
       val r   = power(power(aji, 2) + power(aii, 2), 0.5)
       val c   = divide(aii, r)
       val s   = divide(aji, r)
+
+//      println(s"aii = $aii, aji = $aji, r = $r, c = $c, s = $s, i = $i, j = $j")
+
       val jthRow = ds.filter(_.i == j)
       val ithRow = ds.filter(_.i == i)
-      val newRows = ithRow.joinWith(jthRow, '_1("j") === '_2("j").alias("otherJ"), "outer").flatMap { case (x, y) =>
-          val newIth = MatrixCell(x.i, x.j, mathOps.times(x.x, c) )
-          Seq(newIth) // TODO - this is just a placeholder at the moment
-      }
+      val newRows = ithRow.joinWith(jthRow, '_1("j") === '_2("j"), "outer").flatMap { case (x, y) =>
+        val newIth = MatrixCell(x.i, x.j, x.x * c + y.x * (-s))
+        val newJth = MatrixCell(y.i, y.j, x.x * c + y.x * s)
+        Seq(newIth, newJth)
+      }.filter(_.x != mathOps.zero)
       ds.filter(c => c.i != i && c.i != j).union(newRows)
     }
   }

@@ -8,6 +8,8 @@ import org.scalactic.TypeCheckedTripleEquals
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.{Matchers, WordSpec}
 
+import scala.collection.mutable
+
 @RunWith(classOf[JUnitRunner])
 class SparseSparkMatrixIntegrationSpec extends WordSpec with Matchers with TypeCheckedTripleEquals {
 
@@ -26,18 +28,34 @@ class SparseSparkMatrixIntegrationSpec extends WordSpec with Matchers with TypeC
       |9  10
       |11 12
     """.stripMargin, toNumeric)
+  val toRotate: SparseSpark[Double] = toMatrix[Double](
+    """1  2  3
+      |-6 1 -4
+      |-7 1  9""".stripMargin, toDouble)
+
+  private val toRotateCells: mutable.WrappedArray[MatrixCell[Double]] = toRotate.collect()
 
   private implicit val session: SparkSession = SparkForTesting.session
 
   "Rotating the matrix in a certain way" should {
-    "zero out a given cell" ignore {
-      val toRotate = toMatrix[Double](
-        """1  2  3
-          |-6 1 -4
-          |-7 1  9""".stripMargin, toDouble)
+    "zero out a given cell" in {
       val cells = toRotate.make0(1, 0).collect()
-      cells should have size 8
-      cells filter(c => c.i == 1 && c.j == 0) shouldBe empty
+      withClue(s"Starting with:\n${asString(toRotateCells)}\n\nOutput Matrix:\n${asString(cells)}\n") {
+        cells should have size 8
+        cells filter(c => c.i == 1 && c.j == 0) shouldBe empty
+      }
+    }
+  }
+
+  "Getting a value" should {
+    "be non-zero if it exists" in {
+      getOr0(toRotateCells, 1, 0) should not be 0d
+      getOr0(toRotateCells, 0, 1) should not be 0d
+      getOr0(toRotateCells, 0, 0) should not be 0d
+      getOr0(toRotateCells, 1, 1) should not be 0d
+    }
+    "be 0 if there is no entry" in {
+      getOr0(toRotateCells, 3, 3) shouldBe 0d
     }
   }
 

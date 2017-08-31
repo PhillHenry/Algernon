@@ -13,6 +13,23 @@ object MatrixMaker {
   val toNumeric: String => Int = _.toInt
   val toDouble: String => Double = _.toDouble
 
+  def asString[T](xs: Seq[MatrixCell[T]]): String = {
+    val width   = xs.map(_.j).max.toInt
+    val height  = xs.map(_.i).max.toInt
+    val padding = xs.map(_.x.toString.length).max + 1
+    val rows    = xs.groupBy(_.i)
+    val string  = new StringBuffer()
+    for (i <- 0 to height) {
+      val row = rows(i).map(x => x.j -> x.x).toMap
+      for (j <- 0 to width) {
+        val str = row.getOrElse(j, 0)
+        string.append(s"%-${padding}s".format(str))
+      }
+      string.append("\n")
+    }
+    string.toString
+  }
+
   def toMatrix[T: Encoder : TypeTag : Numeric](x: String, toNumeric: String => T): SparseSpark[T] = {
 
     val rdd = sc.parallelize(asCells(x, toNumeric))
