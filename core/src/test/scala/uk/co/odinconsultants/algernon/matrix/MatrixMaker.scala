@@ -11,6 +11,7 @@ object MatrixMaker {
   import SparseSparkMatrix._
 
   val toNumeric: String => Int = _.toInt
+  val toDouble: String => Double = _.toDouble
 
   def toMatrix[T: Encoder : TypeTag : Numeric](x: String, toNumeric: String => T): SparseSpark[T] = {
 

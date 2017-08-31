@@ -37,6 +37,54 @@ object SparseSparkMatrix {
       val squared = ds.select(col("x")).map(x => mathOps.times(x.getAs[T](0), x.getAs[T](0))).agg(sum(col("value"))).collect()(0).getAs[T](0)
       squared
     }
+
+    /**
+    G = np.eye(len(A))
+    aji = A[j, i]
+    aii = A[i, i]
+    r = ((aji ** 2) + (aii ** 2)) ** 0.5
+    c = aii / r
+    s = - aji / r
+    G[i, j] = -s
+    G[i, i] = c
+    G[j, j] = c
+    G[j, i] = s
+      */
+    def make0(j: Long, i: Long)(implicit session: SparkSession, maths: Maths[T]): SparseSpark[T] = {
+      val mathOps = implicitly[Numeric[T]]
+      import mathOps.mkNumericOps
+      import maths._
+      import session.sqlContext.implicits._
+      val as = ds.filter(c => (c.i == i || c.i == j) && c.j == i).collect()
+      val aji = getOr0(as, i, j)
+      val aii = getOr0(as, i, i)
+      val r   = power(power(aji, 2) + power(aii, 2), 0.5)
+      val c   = divide(aii, r)
+      val s   = divide(aji, r)
+      val jthRow = ds.filter(_.i == j)
+      val ithRow = ds.filter(_.i == i)
+      val newRows = ithRow.joinWith(jthRow, '_1("j") === '_2("j").alias("otherJ"), "outer").flatMap { case (x, y) =>
+          val newIth = MatrixCell(x.i, x.j, mathOps.times(x.x, c) )
+          Seq(newIth) // TODO - this is just a placeholder at the moment
+      }
+      ds.filter(c => c.i != i && c.i != j).union(newRows)
+    }
+  }
+
+  def getOr0[T: Numeric](ts: Seq[MatrixCell[T]], i: Long, j: Long): T = {
+    val mathOps = implicitly[Numeric[T]]
+    val maybe   = ts.filter(c => c.i == i && c.j == j)
+    maybe.headOption.map(_.x).getOrElse(mathOps.zero)
+  }
+
+  trait Maths[T] {
+    def power(x: T, y: Double): T
+    def divide(x: T, y: T): T
+  }
+
+  implicit val DoubleMaths: Maths[Double] = new Maths[Double] {
+    override def power(x: Double, y: Double): Double = Math.pow(x, y)
+    override def divide(x: Double, y: Double): Double = x / y
   }
 
 }
