@@ -37,6 +37,16 @@ class SparseSparkMatrixIntegrationSpec extends WordSpec with Matchers with TypeC
 
   private implicit val session: SparkSession = SparkForTesting.session
 
+  "Rotation" should {
+    "still be calculable with no common indices in outer join" in {
+      val n      = 10
+      val ithRow: SparseSpark[Double] = session.createDataset(SparkForTesting.sc.parallelize((1 to 5).map(i => MatrixCell(1, i, i.toDouble))))
+      val jthRow: SparseSpark[Double] = session.createDataset(SparkForTesting.sc.parallelize((6 to n).map(i => MatrixCell(2, i, i.toDouble))))
+      val cells  = rotate(jthRow, ithRow, c=1.0, s=1.0).collect()
+      cells should have size n
+    }
+  }
+
   "Rotating the matrix in a certain way" should {
     "zero out a given cell" in {
       val cells = toRotate.make0(1, 0).collect()

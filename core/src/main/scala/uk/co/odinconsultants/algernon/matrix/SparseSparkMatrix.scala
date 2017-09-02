@@ -66,13 +66,25 @@ object SparseSparkMatrix {
 
       val jthRow = ds.filter(_.i == j)
       val ithRow = ds.filter(_.i == i)
-      val newRows = ithRow.joinWith(jthRow, '_1("j") === '_2("j"), "outer").flatMap { case (x, y) =>
-        val newIth = MatrixCell(x.i, x.j, x.x * c + y.x * (-s))
-        val newJth = MatrixCell(y.i, y.j, x.x * c + y.x * s)
-        Seq(newIth, newJth)
-      }.filter(_.x != mathOps.zero)
+      val newRows = rotate(jthRow, ithRow, c, s)
       ds.filter(c => c.i != i && c.i != j).union(newRows)
     }
+  }
+
+  def rotate[T: Encoder : TypeTag : Numeric](jthRow: SparseSpark[T], ithRow: SparseSpark[T], c: T, s: T)(implicit session: SparkSession): SparseSpark[T] = {
+    val mathOps = implicitly[Numeric[T]]
+    import session.sqlContext.implicits._
+    import mathOps.mkNumericOps
+    ithRow.joinWith(jthRow, '_1 ("j") === '_2 ("j"), "outer").flatMap { case (x, y) =>
+
+      def calculate(x: MatrixCell[T], y: MatrixCell[T], _s: T) =
+        {if (x == null) mathOps.zero else (x.x * c)} + {if (y == null) mathOps.zero else (y.x * _s)}
+
+      val newIth = if (x == null) Seq() else Seq(MatrixCell(x.i, x.j, calculate(x, y, -s)))
+      val newJth = if (y == null) Seq() else Seq(MatrixCell(y.i, y.j, calculate(x, y, s)))
+
+      newIth ++ newJth
+    }.filter(_.x != mathOps.zero)
   }
 
   def getOr0[T: Numeric](ts: Seq[MatrixCell[T]], i: Long, j: Long): T = {
