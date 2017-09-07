@@ -10,15 +10,6 @@ import uk.co.odinconsultants.algernon.matrix.SparseSparkMatrix.Maths
 @RunWith(classOf[JUnitRunner])
 class SerializableTest extends WordSpec with Matchers {
 
-  "Functions" should {
-    "be serializable" in {
-      val maths = implicitly[Maths[Double]]
-      val mathOps = implicitly[Numeric[Double]]
-      val fn = SparseSparkMatrix.createCS(maths, mathOps)
-      serialize(fn)
-    }
-  }
-
   "Implicits" should {
     "be serializable" in {
       val maths = implicitly[Maths[Double]]

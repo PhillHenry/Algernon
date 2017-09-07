@@ -87,16 +87,8 @@ object SparseSparkMatrix {
 
   }
 
-  def createCS[T](maths: Maths[T], mathOps: Numeric[T]): ((MatrixCell[T], MatrixCell[T])) => (Long, Long, T, T) =  { case (aij, aii) =>
-
-    import mathOps.mkNumericOps
-    import maths._
-    val aijx = if (aij == null) mathOps.zero else aij.x
-    val aiix = if (aii == null) mathOps.zero else aii.x
-    val r   = power(power(aijx, 2) + power(aiix, 2), 0.5)
-    val c   = divide(aiix, r)
-    val s   = divide(aijx, r)
-
+  def createCS[T: Encoder : TypeTag : Numeric](maths: Maths[T], mathOps: Numeric[T]): ((MatrixCell[T], MatrixCell[T])) => (Long, Long, T, T) =  { case (aij, aii) =>
+    val (c, s) = csOf(aij, aii, mathOps)
 
     (aij.i, aij.j, c, s)
   }
