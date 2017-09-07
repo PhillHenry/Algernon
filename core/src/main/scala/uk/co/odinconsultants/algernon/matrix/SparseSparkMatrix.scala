@@ -41,14 +41,12 @@ object SparseSparkMatrix {
       ???
     }
 
-    def givensIndexes(implicit session: SparkSession): Dataset[_] = {
+    def givensIndexes(implicit session: SparkSession): Dataset[((MatrixCell[T], MatrixCell[T]), MatrixCell[T])] = {
       import session.sqlContext.implicits._
       val lowerTriangle = ds.filter(lowerTriangular)
       val diagonal      = ds.filter(c => c.i == c.j)
-//      val diagonalOnRow: Dataset[(MatrixCell[T], MatrixCell[T])]  = lowerTriangle.joinWith(diagonal, '_1("i") === '_2("i"), "left_outer")
-      val diagonalOnRow: Dataset[_]  = lowerTriangle.join(diagonal, lowerTriangle("i") === diagonal("i"), "left_outer")
-//      diagonalOnRow.joinWith()
-      diagonalOnRow // TODO this is incomplete
+      val diagonalOnRow: Dataset[(MatrixCell[T], MatrixCell[T])]  = lowerTriangle.joinWith(diagonal, '_1("i") === '_2("i"), "left_outer")
+      diagonalOnRow.joinWith(diagonal, diagonalOnRow("_1.j") === diagonal("j"), "left_outer")
     }
 
 
