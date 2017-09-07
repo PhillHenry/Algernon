@@ -12,8 +12,8 @@ class GivensRotationIntegrationSpec extends WordSpec with Matchers {
   private implicit val session: SparkSession = SparkForTesting.session
 
   "Givens factorization" should {
-    val width   = 100
-    val height  = 100
+    val width   = 20
+    val height  = 20
     val density = 0.1
     val factor  = 100d
     val cells   = quasiRandomSparseMatrix(width, height, density, factor)
@@ -21,6 +21,7 @@ class GivensRotationIntegrationSpec extends WordSpec with Matchers {
 
     "first get the indices which are relevant" in {
       val actual = matrix.givensIndexes.collect()
+      actual.foreach(x => println("x = " + x))
       actual.length shouldBe cells.count(lowerTriangular)
     }
 

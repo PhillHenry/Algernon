@@ -45,8 +45,10 @@ object SparseSparkMatrix {
       import session.sqlContext.implicits._
       val lowerTriangle = ds.filter(lowerTriangular)
       val diagonal      = ds.filter(c => c.i == c.j)
-      val withDiagonal: Dataset[(MatrixCell[T], MatrixCell[T])]  = lowerTriangle.joinWith(diagonal, '_1("i") === '_2("i"), "outer")
-      withDiagonal // TODO this is incomplete
+//      val diagonalOnRow: Dataset[(MatrixCell[T], MatrixCell[T])]  = lowerTriangle.joinWith(diagonal, '_1("i") === '_2("i"), "left_outer")
+      val diagonalOnRow: Dataset[_]  = lowerTriangle.join(diagonal, lowerTriangle("i") === diagonal("i"), "left_outer")
+//      diagonalOnRow.joinWith()
+      diagonalOnRow // TODO this is incomplete
     }
 
 

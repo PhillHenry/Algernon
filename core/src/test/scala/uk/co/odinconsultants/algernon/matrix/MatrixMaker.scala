@@ -22,11 +22,13 @@ object MatrixMaker {
 
     val nPerRow = (height * density).toInt
     assert(nPerRow > 0, s"The probability of any cells in a row of length $width with a density $density is 0")
-    for (i <- 0 until height;
-         j <- 0 until nPerRow
+    for (i  <- 0 until height;
+         n  <- 0 until nPerRow
     ) yield {
       val value = randomT() * factor
-      val j     = width * Random.nextInt()
+      val j     = (width * Random.nextDouble()).toInt
+      assert(i >= 0, s"$i")
+      assert(j >= 0, s"$j")
       MatrixCell(i, j, value)
     }
   }
