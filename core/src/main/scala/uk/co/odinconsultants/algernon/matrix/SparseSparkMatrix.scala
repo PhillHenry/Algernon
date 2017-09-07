@@ -41,15 +41,31 @@ object SparseSparkMatrix {
       ???
     }
 
-    def givensIndexes(implicit session: SparkSession): Dataset[((MatrixCell[T], MatrixCell[T]), MatrixCell[T])] = {
+    def givensIndexes(implicit session: SparkSession, maths: Maths[T]): Dataset[(Long, Long, T, T)] = {
       import session.sqlContext.implicits._
       val lowerTriangle = ds.filter(lowerTriangular)
       val diagonal      = ds.filter(c => c.i == c.j)
-      val diagonalOnRow: Dataset[(MatrixCell[T], MatrixCell[T])]  = lowerTriangle.joinWith(diagonal, '_1("i") === '_2("i"), "left_outer")
-      diagonalOnRow.joinWith(diagonal, diagonalOnRow("_1.j") === diagonal("j"), "left_outer")
+      val aij_aii       = lowerTriangle.joinWith(diagonal, '_1("i") === '_2("i"), "left_outer")
+
+      val mathOps = implicitly[Numeric[T]]
+//      import SparseSparkMatrix._
+//      val maths = implicitly[Maths[T]]
+
+      aij_aii.map { case (aij, aii) =>
+//        val (c, s) = csOf(aij, aii, mathOps) // this is giving serialization errors. don't know why yet. TODO
+
+        import mathOps.mkNumericOps
+        import maths._
+        val aijx = if (aij == null) mathOps.zero else aij.x
+        val aiix = if (aii == null) mathOps.zero else aii.x
+        val r   = power(power(aijx, 2) + power(aiix, 2), 0.5)
+        val c   = divide(aiix, r)
+        val s   = divide(aijx, r)
+
+
+        (aij.i, aij.j, c, s)
+      }
     }
-
-
 
     /**
     G = np.eye(len(A))
@@ -64,22 +80,41 @@ object SparseSparkMatrix {
     G[j, i] = s
       */
     def make0(i: Long, j: Long)(implicit session: SparkSession, maths: Maths[T]): SparseSpark[T] = {
-      val mathOps = implicitly[Numeric[T]]
-      import mathOps.mkNumericOps
-      import maths._
       import session.sqlContext.implicits._
       val as = ds.filter(c => (c.i == i || c.i == j) && (c.j == i || c.j == j)).collect()
       val aji = getOr0(as, i, j)
       val aii = getOr0(as, i, i)
-      val r   = power(power(aji, 2) + power(aii, 2), 0.5)
-      val c   = divide(aii, r)
-      val s   = divide(aji, r)
+
+      val mathOps = implicitly[Numeric[T]]
+      val (c, s) = cs(aji, aii, mathOps, maths)
 
       val jthRow = ds.filter(_.i == j)
       val ithRow = ds.filter(_.i == i)
       val newRows = rotate(jthRow, ithRow, c, s)
       ds.filter(c => c.i != i && c.i != j).union(newRows)
     }
+
+  }
+
+  def csOf[T: Encoder : TypeTag : Numeric](aij: MatrixCell[T], aii: MatrixCell[T], mathOps: Numeric[T]): (T, T) = {
+    val aijx = if (aij == null) mathOps.zero else aij.x
+    val aiix = if (aii == null) mathOps.zero else aii.x
+//    cs(aijx, aiix, mathOps, maths)
+//    import mathOps.mkNumericOps
+//    val r   = (aijx * aijx) + (aiix * aiix)
+//    val c   = aiix * r
+//    val s   = aijx * r
+//    (c, s)
+    (mathOps.zero, mathOps.zero)
+  }
+
+  def cs[T: Encoder : TypeTag : Numeric](aji: T, aii: T, mathOps: Numeric[T], maths: Maths[T]): (T, T) = {
+    import mathOps.mkNumericOps
+    import maths._
+    val r   = power(power(aji, 2) + power(aii, 2), 0.5)
+    val c   = divide(aii, r)
+    val s   = divide(aji, r)
+    (c, s)
   }
 
   def rotate[T: Encoder : TypeTag : Numeric](jthRow: SparseSpark[T], ithRow: SparseSpark[T], c: T, s: T)(implicit session: SparkSession): SparseSpark[T] = {
@@ -104,7 +139,7 @@ object SparseSparkMatrix {
     maybe.headOption.map(_.x).getOrElse(mathOps.zero)
   }
 
-  trait Maths[T] {
+  trait Maths[T] extends Serializable {
     def power(x: T, y: Double): T
     def divide(x: T, y: T): T
   }
