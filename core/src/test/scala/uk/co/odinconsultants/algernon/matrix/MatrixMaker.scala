@@ -4,6 +4,7 @@ import org.apache.spark.sql.Encoder
 import uk.co.odinconsultants.algernon.matrix.SparkForTesting.sc
 
 import scala.reflect.runtime.universe.TypeTag
+import scala.util.Random
 
 object MatrixMaker {
 
@@ -12,6 +13,23 @@ object MatrixMaker {
 
   val toNumeric: String => Int = _.toInt
   val toDouble: String => Double = _.toDouble
+
+  implicit val randomDouble: () => Double = () => Random.nextDouble()
+
+  def quasiRandomSparseMatrix[T: Encoder : TypeTag : Numeric](width: Int, height: Int, density: Double, factor: T)(implicit randomT: () => T): Seq[MatrixCell[T]] = {
+    val mathOps = implicitly[Numeric[T]]
+    import mathOps.mkNumericOps
+
+    val nPerRow = (height * density).toInt
+    assert(nPerRow > 0, s"The probability of any cells in a row of length $width with a density $density is 0")
+    for (i <- 0 until height;
+         j <- 0 until nPerRow
+    ) yield {
+      val value = randomT() * factor
+      val j     = width * Random.nextInt()
+      MatrixCell(i, j, value)
+    }
+  }
 
   def asString[T](xs: Seq[MatrixCell[T]]): String = {
     val width   = xs.map(_.j).max.toInt
@@ -30,12 +48,11 @@ object MatrixMaker {
     string.toString
   }
 
-  def toMatrix[T: Encoder : TypeTag : Numeric](x: String, toNumeric: String => T): SparseSpark[T] = {
+  def toMatrix[T: Encoder : TypeTag : Numeric](x: String, toNumeric: String => T): SparseSpark[T] =
+    toSparseMatrix(asCells(x, toNumeric))
 
-    val rdd = sc.parallelize(asCells(x, toNumeric))
-
-    SparkForTesting.session.createDataset(rdd)
-  }
+  def toSparseMatrix[T: Encoder : TypeTag : Numeric](ts: Seq[MatrixCell[T]]): SparseSpark[T] =
+    SparkForTesting.session.createDataset(sc.parallelize(ts))
 
   def asCells[T: Encoder : TypeTag : Numeric](x: String, toNumeric: (String) => T): Seq[MatrixCell[T]] = {
     def toCell(i: Int, j: Int, v: String): MatrixCell[T] = MatrixCell(i.toLong, j.toLong, toNumeric(v))

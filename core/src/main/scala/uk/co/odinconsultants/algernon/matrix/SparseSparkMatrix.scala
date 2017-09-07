@@ -34,9 +34,22 @@ object SparseSparkMatrix {
     def frobeniusNormSquared(implicit session: SparkSession): T = {
       import session.sqlContext.implicits._
       val mathOps = implicitly[Numeric[T]]
-      val squared = ds.select(col("x")).map(x => mathOps.times(x.getAs[T](0), x.getAs[T](0))).agg(sum(col("value"))).collect()(0).getAs[T](0)
-      squared
+      ds.select(col("x")).map(x => mathOps.times(x.getAs[T](0), x.getAs[T](0))).agg(sum(col("value"))).collect()(0).getAs[T](0)
     }
+
+    def givensRotation(): SparseSpark[T] = {
+      ???
+    }
+
+    def givensIndexes(implicit session: SparkSession): Dataset[_] = {
+      import session.sqlContext.implicits._
+      val lowerTriangle = ds.filter(lowerTriangular)
+      val diagonal      = ds.filter(c => c.i == c.j)
+      val withDiagonal: Dataset[(MatrixCell[T], MatrixCell[T])]  = lowerTriangle.joinWith(diagonal, '_1("i") === '_2("i"), "outer")
+      withDiagonal // TODO this is incomplete
+    }
+
+
 
     /**
     G = np.eye(len(A))
@@ -61,8 +74,6 @@ object SparseSparkMatrix {
       val r   = power(power(aji, 2) + power(aii, 2), 0.5)
       val c   = divide(aii, r)
       val s   = divide(aji, r)
-
-//      println(s"aii = $aii, aji = $aji, r = $r, c = $c, s = $s, i = $i, j = $j")
 
       val jthRow = ds.filter(_.i == j)
       val ithRow = ds.filter(_.i == i)
@@ -102,5 +113,7 @@ object SparseSparkMatrix {
     override def power(x: Double, y: Double): Double = Math.pow(x, y)
     override def divide(x: Double, y: Double): Double = x / y
   }
+
+  def lowerTriangular[_]: MatrixCell[_] => Boolean = { c => c.i > c.j }
 
 }
