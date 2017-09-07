@@ -1,8 +1,11 @@
 package uk.co.odinconsultants.algernon.matrix
 
 import org.apache.spark.sql.SparkSession
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 import org.scalatest.{Matchers, WordSpec}
 
+@RunWith(classOf[JUnitRunner])
 class GivensRotationIntegrationSpec extends WordSpec with Matchers {
 
   import MatrixMaker._

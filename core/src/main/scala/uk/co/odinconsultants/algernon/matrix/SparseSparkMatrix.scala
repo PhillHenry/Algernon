@@ -37,6 +37,9 @@ object SparseSparkMatrix {
       ds.select(col("x")).map(x => mathOps.times(x.getAs[T](0), x.getAs[T](0))).agg(sum(col("value"))).collect()(0).getAs[T](0)
     }
 
+    /**
+      * @see https://en.wikipedia.org/wiki/Givens_rotation
+      */
     def givensRotation(): SparseSpark[T] = {
       ???
     }
@@ -48,24 +51,12 @@ object SparseSparkMatrix {
       val aij_aii       = lowerTriangle.joinWith(diagonal, '_1("i") === '_2("i"), "left_outer")
 
       val mathOps = implicitly[Numeric[T]]
-//      import SparseSparkMatrix._
-//      val maths = implicitly[Maths[T]]
 
-      aij_aii.map { case (aij, aii) =>
-//        val (c, s) = csOf(aij, aii, mathOps) // this is giving serialization errors. don't know why yet. TODO
+      val fn = SparseSparkMatrix.createCS(maths, mathOps)
+      aij_aii.map(fn)
 
-        import mathOps.mkNumericOps
-        import maths._
-        val aijx = if (aij == null) mathOps.zero else aij.x
-        val aiix = if (aii == null) mathOps.zero else aii.x
-        val r   = power(power(aijx, 2) + power(aiix, 2), 0.5)
-        val c   = divide(aiix, r)
-        val s   = divide(aijx, r)
-
-
-        (aij.i, aij.j, c, s)
-      }
     }
+
 
     /**
     G = np.eye(len(A))
@@ -94,6 +85,20 @@ object SparseSparkMatrix {
       ds.filter(c => c.i != i && c.i != j).union(newRows)
     }
 
+  }
+
+  def createCS[T](maths: Maths[T], mathOps: Numeric[T]): ((MatrixCell[T], MatrixCell[T])) => (Long, Long, T, T) =  { case (aij, aii) =>
+
+    import mathOps.mkNumericOps
+    import maths._
+    val aijx = if (aij == null) mathOps.zero else aij.x
+    val aiix = if (aii == null) mathOps.zero else aii.x
+    val r   = power(power(aijx, 2) + power(aiix, 2), 0.5)
+    val c   = divide(aiix, r)
+    val s   = divide(aijx, r)
+
+
+    (aij.i, aij.j, c, s)
   }
 
   def csOf[T: Encoder : TypeTag : Numeric](aij: MatrixCell[T], aii: MatrixCell[T], mathOps: Numeric[T]): (T, T) = {
