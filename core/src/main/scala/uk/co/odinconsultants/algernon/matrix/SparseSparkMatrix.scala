@@ -49,12 +49,9 @@ object SparseSparkMatrix {
       val lowerTriangle = ds.filter(lowerTriangular)
       val diagonal      = ds.filter(c => c.i == c.j)
       val aij_aii       = lowerTriangle.joinWith(diagonal, '_1("i") === '_2("i"), "left_outer")
-
-      val mathOps = implicitly[Numeric[T]]
-
-      val fn = SparseSparkMatrix.createCS(maths, mathOps)
+      val mathOps       = implicitly[Numeric[T]]
+      val fn            = SparseSparkMatrix.createCS(maths, mathOps)
       aij_aii.map(fn)
-
     }
 
 
@@ -88,21 +85,16 @@ object SparseSparkMatrix {
   }
 
   def createCS[T: Encoder : TypeTag : Numeric](maths: Maths[T], mathOps: Numeric[T]): ((MatrixCell[T], MatrixCell[T])) => (Long, Long, T, T) =  { case (aij, aii) =>
-    val (c, s) = csOf(aij, aii, mathOps)
+    val (c, s) = csOf(aij, aii, mathOps, maths)
 
     (aij.i, aij.j, c, s)
   }
 
-  def csOf[T: Encoder : TypeTag : Numeric](aij: MatrixCell[T], aii: MatrixCell[T], mathOps: Numeric[T]): (T, T) = {
+  def csOf[T: Encoder : TypeTag : Numeric](aij: MatrixCell[T], aii: MatrixCell[T], mathOps: Numeric[T], maths: Maths[T]): (T, T) = {
     val aijx = if (aij == null) mathOps.zero else aij.x
     val aiix = if (aii == null) mathOps.zero else aii.x
-//    cs(aijx, aiix, mathOps, maths)
-//    import mathOps.mkNumericOps
-//    val r   = (aijx * aijx) + (aiix * aiix)
-//    val c   = aiix * r
-//    val s   = aijx * r
-//    (c, s)
-    (mathOps.zero, mathOps.zero)
+
+    cs(aijx, aiix, mathOps, maths)
   }
 
   def cs[T: Encoder : TypeTag : Numeric](aji: T, aii: T, mathOps: Numeric[T], maths: Maths[T]): (T, T) = {
