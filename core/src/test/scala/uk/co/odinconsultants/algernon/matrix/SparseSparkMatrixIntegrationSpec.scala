@@ -37,6 +37,25 @@ class SparseSparkMatrixIntegrationSpec extends WordSpec with Matchers with TypeC
 
   private implicit val session: SparkSession = SparkForTesting.session
 
+  def zero[T](i: Long, j: Long, m: SparseSpark[Double], expectedSize: Int): SparseSpark[Double] = {
+    val rotated = m.make0(i, j)
+    val cells   = rotated.collect()
+    withClue(s"($i, $j): Starting with:\n${asString(m.collect())}\n\nOutput Matrix:\n${asString(cells)}\n") {
+      cells filter(c => c.i == i && c.j <= j) shouldBe empty
+      cells should have size expectedSize
+    }
+    rotated
+  }
+
+  "Rotating the matrix in a certain way" should {
+
+    "zero out a given cell" in {
+      val step1 = zero(1, 0, toRotate, 8)
+      val step2 = zero(2, 0, step1, 7)
+      zero(2, 1, step2, 6)
+    }
+  }
+
   "Rotation" should {
     "still be calculable with no common indices in outer join" in {
       val n      = 10
@@ -44,16 +63,6 @@ class SparseSparkMatrixIntegrationSpec extends WordSpec with Matchers with TypeC
       val jthRow: SparseSpark[Double] = session.createDataset(SparkForTesting.sc.parallelize((6 to n).map(i => MatrixCell(2, i, i.toDouble))))
       val cells  = rotate(jthRow, ithRow, c=1.0, s=1.0).collect()
       cells should have size n
-    }
-  }
-
-  "Rotating the matrix in a certain way" should {
-    "zero out a given cell" in {
-      val cells = toRotate.make0(1, 0).collect()
-      withClue(s"Starting with:\n${asString(toRotateCells)}\n\nOutput Matrix:\n${asString(cells)}\n") {
-        cells should have size 8
-        cells filter(c => c.i == 1 && c.j == 0) shouldBe empty
-      }
     }
   }
 

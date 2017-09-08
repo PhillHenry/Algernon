@@ -65,17 +65,19 @@ object SparseSparkMatrix {
 
     def make0(i: Long, j: Long)(implicit session: SparkSession, maths: Maths[T]): SparseSpark[T] = {
       import session.sqlContext.implicits._
-      val as = ds.filter(c => (c.i == i || c.i == j) && (c.j == i || c.j == j)).collect()
-      val aji = getOr0(as, i, j)
-      val aii = getOr0(as, i, i)
+      val cellFn  = cornerValues[T](i, j)
+      val as      = ds.filter(cellFn).collect()
+      val aij     = getOr0(as, i, j)
+      val ajj     = getOr0(as, j, j)
 
       val mathOps = implicitly[Numeric[T]]
-      val (c, s) = cs(aji, aii, mathOps, maths)
+      val (c, s) = cs(aij, ajj, mathOps, maths)
+      println(s"PH: i = $i, j = $j, aij = $aij, ajj = $ajj, c = $c, s = $s")
 
       rotateTo0(i, j, c, s, ds)
     }
 
-    private def rotateTo0[U: Encoder : TypeTag : Numeric](i: Long, j: Long, c: U, s: U, m: SparseSpark[U])(implicit session: SparkSession, maths: Maths[U]) = {
+    def rotateTo0[U: Encoder : TypeTag : Numeric](i: Long, j: Long, c: U, s: U, m: SparseSpark[U])(implicit session: SparkSession, maths: Maths[U]) = {
       import session.sqlContext.implicits._
       val jthRow = m.filter(_.i == j)
       val ithRow = m.filter(_.i == i)
@@ -102,7 +104,7 @@ object SparseSparkMatrix {
     import maths._
     val r   = power(power(aji, 2) + power(aii, 2), 0.5)
     val c   = divide(aii, r)
-    val s   = divide(aji, r)
+    val s   = - divide(aji, r)
     (c, s)
   }
 
@@ -115,11 +117,15 @@ object SparseSparkMatrix {
       def calculate(x: MatrixCell[T], y: MatrixCell[T], _s: T) =
         {if (x == null) mathOps.zero else (x.x * c)} + {if (y == null) mathOps.zero else (y.x * _s)}
 
-      val newIth = if (x == null) Seq() else Seq(MatrixCell(x.i, x.j, calculate(x, y, -s)))
-      val newJth = if (y == null) Seq() else Seq(MatrixCell(y.i, y.j, calculate(x, y, s)))
+      val newIth = if (x == null) Seq() else Seq(MatrixCell(x.i, x.j, calculate(x, y, s)))
+      val newJth = if (y == null) Seq() else Seq(MatrixCell(y.i, y.j, calculate(x, y, -s)))
 
       newIth ++ newJth
     }.filter(c => !essentiallyZero(c.x)) //c => mathOps.compare(mathOps.abs(c.x - maths.epsilon(c.x)), mathOps.zero) > 0 )
+  }
+
+  def cornerValues[T](i: Long, j: Long):  (MatrixCell[T]) => Boolean = { c =>
+    (c.i == i || c.i == j) && (c.j == i || c.j == j)
   }
 
   def essentiallyZero[T: Numeric](t: T)(implicit maths: Maths[T], mathOps: Numeric[T]): Boolean =

@@ -40,10 +40,12 @@ object MatrixMaker {
     val rows    = xs.groupBy(_.i)
     val string  = new StringBuffer()
     for (i <- 0 to height) {
-      val row = rows(i).map(x => x.j -> x.x).toMap
-      for (j <- 0 to width) {
-        val str = row.getOrElse(j, 0)
-        string.append(s"%-${padding}s".format(str))
+      rows.get(i) map { cells =>
+        val row = cells.map(x => x.j -> x.x).toMap
+        for (j <- 0 to width) {
+          val str = row.getOrElse(j, 0)
+          string.append(s"%-${padding}s".format(str))
+        }
       }
       string.append("\n")
     }
@@ -56,7 +58,7 @@ object MatrixMaker {
   def toSparseMatrix[T: Encoder : TypeTag : Numeric](ts: Seq[MatrixCell[T]]): SparseSpark[T] =
     SparkForTesting.session.createDataset(sc.parallelize(ts))
 
-  def asCells[T: Encoder : TypeTag : Numeric](x: String, toNumeric: (String) => T): Seq[MatrixCell[T]] = {
+  def asCells[T: Numeric](x: String, toNumeric: (String) => T): Seq[MatrixCell[T]] = {
     def toCell(i: Int, j: Int, v: String): MatrixCell[T] = MatrixCell(i.toLong, j.toLong, toNumeric(v))
 
     def toCells(line: String, i: Int): Seq[MatrixCell[T]] = line.split(" ").filterNot(_ == "").zipWithIndex.map { case (v, j) => toCell(i, j, v) }
