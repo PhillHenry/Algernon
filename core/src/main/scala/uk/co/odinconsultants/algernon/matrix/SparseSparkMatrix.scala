@@ -40,8 +40,17 @@ object SparseSparkMatrix {
     /**
       * @see https://en.wikipedia.org/wiki/Givens_rotation
       */
-    def givensRotation(): SparseSpark[T] = {
-      ???
+    def givensRotation(implicit session: SparkSession, maths: Maths[T]): SparseSpark[T] = {
+      import session.sqlContext.implicits._
+      val rotationInfo = givensIndexes.orderBy('_1, '_2).collect()
+      var n = 0d
+      rotationInfo.foldLeft(ds) { case(acc, (i, j, c, s)) =>
+        println(s"i = $i, j = $j, c = $c, s = $s ${(n / rotationInfo.length) * 100}% done")
+        val newDS = rotateTo0(i, j, c, s, acc).persist()
+        n = n + 1
+//        acc.unpersist()
+        newDS
+      }
     }
 
     def givensIndexes(implicit session: SparkSession, maths: Maths[T]): Dataset[(Long, Long, T, T)] = {
@@ -54,19 +63,6 @@ object SparseSparkMatrix {
       aij_aii.map(fn)
     }
 
-
-    /**
-    G = np.eye(len(A))
-    aji = A[j, i]
-    aii = A[i, i]
-    r = ((aji ** 2) + (aii ** 2)) ** 0.5
-    c = aii / r
-    s = - aji / r
-    G[i, j] = -s
-    G[i, i] = c
-    G[j, j] = c
-    G[j, i] = s
-      */
     def make0(i: Long, j: Long)(implicit session: SparkSession, maths: Maths[T]): SparseSpark[T] = {
       import session.sqlContext.implicits._
       val as = ds.filter(c => (c.i == i || c.i == j) && (c.j == i || c.j == j)).collect()
@@ -76,12 +72,16 @@ object SparseSparkMatrix {
       val mathOps = implicitly[Numeric[T]]
       val (c, s) = cs(aji, aii, mathOps, maths)
 
-      val jthRow = ds.filter(_.i == j)
-      val ithRow = ds.filter(_.i == i)
-      val newRows = rotate(jthRow, ithRow, c, s)
-      ds.filter(c => c.i != i && c.i != j).union(newRows)
+      rotateTo0(i, j, c, s, ds)
     }
 
+    private def rotateTo0[U: Encoder : TypeTag : Numeric](i: Long, j: Long, c: U, s: U, m: SparseSpark[U])(implicit session: SparkSession, maths: Maths[U]) = {
+      import session.sqlContext.implicits._
+      val jthRow = m.filter(_.i == j)
+      val ithRow = m.filter(_.i == i)
+      val newRows = rotate(jthRow, ithRow, c, s)
+      m.filter(c => c.i != i && c.i != j).union(newRows)
+    }
   }
 
   def createCS[T: Encoder : TypeTag : Numeric](maths: Maths[T], mathOps: Numeric[T]): ((MatrixCell[T], MatrixCell[T])) => (Long, Long, T, T) =  { case (aij, aii) =>
@@ -106,7 +106,7 @@ object SparseSparkMatrix {
     (c, s)
   }
 
-  def rotate[T: Encoder : TypeTag : Numeric](jthRow: SparseSpark[T], ithRow: SparseSpark[T], c: T, s: T)(implicit session: SparkSession): SparseSpark[T] = {
+  def rotate[T: Encoder : TypeTag : Numeric](jthRow: SparseSpark[T], ithRow: SparseSpark[T], c: T, s: T)(implicit session: SparkSession, maths: Maths[T]): SparseSpark[T] = {
     val mathOps = implicitly[Numeric[T]]
     import session.sqlContext.implicits._
     import mathOps.mkNumericOps
@@ -119,8 +119,11 @@ object SparseSparkMatrix {
       val newJth = if (y == null) Seq() else Seq(MatrixCell(y.i, y.j, calculate(x, y, s)))
 
       newIth ++ newJth
-    }.filter(_.x != mathOps.zero)
+    }.filter(c => !essentiallyZero(c.x)) //c => mathOps.compare(mathOps.abs(c.x - maths.epsilon(c.x)), mathOps.zero) > 0 )
   }
+
+  def essentiallyZero[T: Numeric](t: T)(implicit maths: Maths[T], mathOps: Numeric[T]): Boolean =
+    mathOps.compare(mathOps.abs(t), maths.epsilon(t)) <= 0
 
   def getOr0[T: Numeric](ts: Seq[MatrixCell[T]], i: Long, j: Long): T = {
     val mathOps = implicitly[Numeric[T]]
@@ -131,11 +134,13 @@ object SparseSparkMatrix {
   trait Maths[T] extends Serializable {
     def power(x: T, y: Double): T
     def divide(x: T, y: T): T
+    def epsilon(x: T): T
   }
 
   implicit val DoubleMaths: Maths[Double] = new Maths[Double] {
     override def power(x: Double, y: Double): Double = Math.pow(x, y)
     override def divide(x: Double, y: Double): Double = x / y
+    override def epsilon(x: Double): Double = 0.0001 //Math.ulp(x) // TODO - fix this
   }
 
   def lowerTriangular[_]: MatrixCell[_] => Boolean = { c => c.i > c.j }

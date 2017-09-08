@@ -22,4 +22,13 @@ class SparseSparkMatrixSpec extends WordSpec with Matchers {
     }
   }
 
+  "values smaller than epsilons" should {
+    "be ignored" in {
+      val t = 0.1
+      essentiallyZero(t) shouldBe false
+      essentiallyZero(DoubleMaths.epsilon(1E-7)) shouldBe true
+      essentiallyZero(DoubleMaths.epsilon(1E-8)) shouldBe true
+    }
+  }
+
 }

@@ -109,6 +109,7 @@
             <include>**/*Spec.*</include>
             <include>**/*Suite.*</include>
           </includes>
+          <argLine>-Xmx4g</argLine>
         </configuration>
       </plugin>
     </plugins>
